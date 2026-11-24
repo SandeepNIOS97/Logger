@@ -1,146 +1,126 @@
 # Logger
 
-A lightweight, thread-safe Swift logger with emoji log levels, environment-based configuration, and native Apple `OSLog` support.
+A lightweight, thread-safe Swift logging framework with emoji log levels, environment presets, source information, console output, and optional Apple unified logging through `os.Logger`.
 
-[![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org)
+[![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 
 ## Overview
 
-**Logger** provides a simple and consistent API for application diagnostics while supporting Swift concurrency and Apple's unified logging system.
+The package provides a static `Log` API backed by a configurable `AppLogger`. It supports verbose, debug, info, success, warning, and error levels, and can be customized or replaced with a `LoggerProtocol` implementation for testing.
 
 ### Features
 
-- Thread-safe logging
+- Thread-safe static logging API
 - Emoji-prefixed log levels
-- Debug, info, warning, error, and critical severities
-- Environment-based configuration
-- Native `OSLog` / `os.Logger` integration
-- Configurable minimum log level
-- Category-based logging
-- Metadata support
+- Verbose, debug, info, success, warning, and error severities
+- Development, staging, and production presets
+- Optional console output with `debugPrint`
+- Optional `os.Logger` integration outside production
+- Configurable source file, function, and line information
+- Custom logger injection through `LoggerProtocol`
 - Swift Package Manager support
-- Suitable for applications and reusable Swift frameworks
 
 ## Requirements
 
-- Swift 5.9 or later
-- iOS 13+
-- macOS 10.15+
-- tvOS 13+
-- watchOS 6+
-- visionOS 1+
-
-Exact platform requirements may vary depending on the package configuration.
+- Swift 6.0 or later
+- iOS 14 or later
 
 ## Installation
 
 ### Swift Package Manager
 
-Add **Logger** to `Package.swift`:
+Add the package to `Package.swift`:
 
 ```swift
 dependencies: [
     .package(
         url: "https://github.com/SandeepNIOS97/Logger.git",
-        from: "1.0.0"
+        branch: "main"
     )
 ]
 ```
 
-Add it to the desired target:
+Add the product to your target:
 
 ```swift
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "Logger", package: "Logger")
+        .product(name: "Logger-framework", package: "Logger")
     ]
 )
+```
+
+Import the module in source files:
+
+```swift
+import Logger_framework
 ```
 
 Or add the package through Xcode:
 
 1. Open **File → Add Package Dependencies…**
 2. Enter `https://github.com/SandeepNIOS97/Logger.git`
-3. Select the required version rule
-4. Add **Logger** to your target
+3. Select the package and branch or version rule
+4. Add the **Logger-framework** library to your target
 
 ## Quick Start
 
+Configure the logger once, then use the short static logging methods:
+
 ```swift
-import Logger
+import Logger_framework
 
-Logger.configure(
-    .init(
-        minimumLevel: .debug,
-        isEmojiEnabled: true
-    )
-)
+Log.configure(configuration: .development)
 
-Logger.debug("Fetching user profile")
-Logger.info("Profile loaded")
-Logger.warning("Profile image is missing")
-Logger.error("Unable to authenticate")
-Logger.critical("Cache storage is unavailable")
+Log.v("Verbose diagnostic")
+Log.d("Fetching user profile")
+Log.i("User ID:", 42)
+Log.s("Profile loaded")
+Log.w("Profile image is missing")
+Log.e("Unable to authenticate", error)
 ```
 
-## Logging Levels
+Multiple arguments are converted with `String(describing:)` and joined with spaces.
 
-| Level | Emoji | Intended use |
-|---|---:|---|
-| Debug | 🐛 | Development diagnostics and internal state |
-| Info | ℹ️ | Normal application lifecycle events |
-| Warning | ⚠️ | Recoverable or unexpected conditions |
-| Error | ❌ | Operation failures requiring attention |
-| Critical | 🔥 | Severe failures or system-wide impact |
+## Usage
 
-Log levels are ordered from least to most severe.
+### Logging Levels
 
-## Basic Usage
+| Method | Case | Emoji | OSLog level | Intended use |
+|---|---|---|---|---|
+| `Log.v(_:)` | `.v` | 💬 | `.debug` | Verbose diagnostics |
+| `Log.d(_:)` | `.d` | 🐛 | `.debug` | Development diagnostics |
+| `Log.i(_:)` | `.i` | ℹ️ | `.info` | General information |
+| `Log.s(_:)` | `.s` | ✅ | `.info` | Successful operations |
+| `Log.w(_:)` | `.w` | ⚠️ | `.default` | Warnings and recoverable issues |
+| `Log.e(_:)` | `.e` | ❌ | `.error` | Errors and failures |
 
-### Debug
+The levels are ordered from `.v` through `.e`. A level below `minimumLevel` is skipped.
 
 ```swift
-Logger.debug("Application launched")
+Log.v("Network request details")
+Log.d("Application launched")
+Log.i("User signed in")
+Log.s("Profile saved")
+Log.w("Response took longer than expected")
+Log.e("Could not save the profile", error)
 ```
 
-### Information
+### Configuration
+
+Create a custom configuration with `LogConfiguration`:
 
 ```swift
-Logger.info("User signed in")
-```
-
-### Warning
-
-```swift
-Logger.warning("Response took longer than expected")
-```
-
-### Error
-
-```swift
-Logger.error(
-    "Failed to save profile",
-    error: error
-)
-```
-
-### Critical
-
-```swift
-Logger.critical("Unable to initialize the application database")
-```
-
-## Configuration
-
-Configure Logger once during application startup:
-
-```swift
-Logger.configure(
-    .init(
-        minimumLevel: .info,
-        isEmojiEnabled: true,
-        usesOSLogger: true
+Log.configure(
+    configuration: LogConfiguration(
+        environment: .development,
+        isConsoleLoggingEnabled: true,
+        isOSLoggingEnabled: true,
+        minimumLevel: .d,
+        showsSourceInfo: true,
+        subsystem: Bundle.main.bundleIdentifier ?? "App",
+        category: "Application"
     )
 )
 ```
@@ -149,227 +129,208 @@ Logger.configure(
 
 | Option | Description | Default |
 |---|---|---|
-| `minimumLevel` | Lowest severity to emit | `.debug` |
-| `isEmojiEnabled` | Includes emoji in console output | `true` |
-| `usesOSLogger` | Sends output through Apple's unified logging system | `true` |
+| `environment` | Controls environment-based output behavior | `.development` |
+| `isConsoleLoggingEnabled` | Enables console output through `debugPrint` | `true` |
+| `isOSLoggingEnabled` | Enables output through `os.Logger` | `true` |
+| `minimumLevel` | Lowest severity to emit | `.v` |
+| `showsSourceInfo` | Includes file, line, and function details | `true` |
+| `subsystem` | `os.Logger` subsystem identifier | Bundle identifier or `"App"` |
+| `category` | `os.Logger` category | `"App"` |
 
-## Environment-Based Configuration
+Console and OS logging are both disabled when `environment` is `.production`, regardless of their individual enablement flags.
 
-Use environment variables or build configuration to control logging behavior.
+### Environment Presets
 
 ```swift
-Logger.configure(
-    .init(
-        minimumLevel: Environment.isProduction ? .warning : .debug,
-        isEmojiEnabled: !Environment.isProduction,
-        usesOSLogger: true
+Log.configure(configuration: .development)
+Log.configure(configuration: .staging)
+Log.configure(configuration: .production)
+Log.configure(configuration: .developmentWithoutOSLog)
+```
+
+| Preset | Environment | Console | OSLog | Minimum level |
+|---|---|---|---|---|
+| `.development` | Development | Enabled | Enabled | `.v` |
+| `.developmentWithoutOSLog` | Development | Enabled | Disabled | `.v` |
+| `.staging` | Staging | Enabled | Enabled | `.v` |
+| `.production` | Production | Disabled | Disabled | `.v` |
+
+For a custom production configuration:
+
+```swift
+Log.configure(
+    configuration: LogConfiguration(
+        environment: .production,
+        isConsoleLoggingEnabled: false,
+        isOSLoggingEnabled: false,
+        minimumLevel: .w
     )
 )
 ```
 
-### Recommended Environments
+### Minimum Log Level
 
-| Environment | Minimum level | Emoji | OSLog |
-|---|---|---:|---:|
-| Development | `.debug` | Enabled | Enabled |
-| Testing | `.debug` | Enabled | Enabled |
-| Staging | `.info` | Optional | Enabled |
-| Production | `.warning` | Disabled | Enabled |
-
-## Categories
-
-Categories make logs easier to filter in Console.app and the OSLog subsystem.
+Messages below the configured minimum are not evaluated or emitted:
 
 ```swift
-let networkLogger = Logger(category: "Network")
-
-networkLogger.info("Request started")
-networkLogger.error("Request failed", error: error)
-```
-
-## Structured Metadata
-
-Attach contextual information to logs:
-
-```swift
-Logger.info(
-    "User profile loaded",
-    metadata: [
-        "user_id": "12345",
-        "cache": "hit",
-        "duration_ms": "42"
-    ]
+Log.configure(
+    configuration: LogConfiguration(
+        environment: .development,
+        minimumLevel: .w
+    )
 )
+
+Log.d("Not emitted")
+Log.i("Not emitted")
+Log.w("Emitted")
+Log.e("Emitted")
 ```
 
-Keep metadata short, stable, and useful for debugging. Avoid logging credentials, access tokens, secrets, personally identifiable information, or sensitive medical or financial data.
+### Source Information
 
-## OSLog Integration
-
-When OSLog integration is enabled, messages are sent through Apple's unified logging system.
+Source information is enabled by default:
 
 ```swift
-Logger.configure(
-    .init(
-        minimumLevel: .info,
-        usesOSLogger: true,
-        subsystem: Bundle.main.bundleIdentifier,
-        category: "Application"
+Log.configure(
+    configuration: LogConfiguration(
+        environment: .development,
+        showsSourceInfo: true
+    )
+)
+
+Log.i("Request started")
+```
+
+This produces source context containing the file name, line number, and function name.
+
+Disable it for shorter messages:
+
+```swift
+Log.configure(
+    configuration: LogConfiguration(
+        environment: .development,
+        showsSourceInfo: false
     )
 )
 ```
 
-View logs using Xcode's console or macOS Console.app.
+### OS Logging
 
-### Filtering in Console.app
+On platforms that provide `os.Logger`, configure the subsystem and category:
 
-```text
-subsystem:com.example.application category:Network
+```swift
+Log.configure(
+    configuration: LogConfiguration(
+        environment: .development,
+        isConsoleLoggingEnabled: true,
+        isOSLoggingEnabled: true,
+        subsystem: Bundle.main.bundleIdentifier ?? "App",
+        category: "Network"
+    )
+)
+
+Log.i("Request started")
+Log.e("Request failed", error)
 ```
 
-## Thread Safety
+OS logging can be viewed in Xcode's console or macOS Console.app. It is automatically disabled for `.production`.
 
-Logger is safe to use across concurrent tasks and threads.
+### Custom Logger Injection
+
+The static API accepts any implementation of `LoggerProtocol`:
+
+```swift
+final class TestLogger: LoggerProtocol {
+    private(set) var messages: [(LogType, String)] = []
+
+    func log(
+        _ type: LogType,
+        _ message: @autoclosure () -> String,
+        file: String,
+        function: String,
+        line: Int
+    ) {
+        messages.append((type, message()))
+    }
+}
+
+let testLogger = TestLogger()
+Log.inject(testLogger)
+Log.i("Test message")
+```
+
+`LoggerProtocol.isEnabled(_:)` has a default implementation that returns `true`, so custom implementations only need to implement `log(_:_:file:function:line:)` unless filtering is required.
+
+To implement filtering:
+
+```swift
+final class FilteredTestLogger: LoggerProtocol {
+    func isEnabled(_ type: LogType) -> Bool {
+        type >= .w
+    }
+
+    func log(
+        _ type: LogType,
+        _ message: @autoclosure () -> String,
+        file: String,
+        function: String,
+        line: Int
+    ) {
+        print(message())
+    }
+}
+```
+
+### Concurrent Usage
+
+The static logger and `AppLogger` are designed for concurrent use:
 
 ```swift
 await withTaskGroup(of: Void.self) { group in
     for index in 1...100 {
         group.addTask {
-            Logger.info("Processing item \(index)")
+            Log.i("Processing item", index)
         }
     }
 }
 ```
 
-Concurrent writes are serialized safely; callers do not need to add synchronization.
+### Error Logging
 
-## Swift Concurrency
-
-Logger may be used from synchronous and asynchronous contexts:
-
-```swift
-func fetchProfile() async throws {
-    Logger.debug("Starting profile request")
-
-    do {
-        let profile = try await profileService.fetch()
-        Logger.info("Profile request succeeded")
-    } catch {
-        Logger.error("Profile request failed", error: error)
-        throw error
-    }
-}
-```
-
-## Filtering by Severity
-
-```swift
-Logger.configure(
-    .init(minimumLevel: .warning)
-)
-
-Logger.debug("Not emitted")
-Logger.info("Not emitted")
-Logger.warning("Emitted")
-Logger.error("Emitted")
-Logger.critical("Emitted")
-```
-
-## Error Logging
-
-Prefer logging an error at the boundary where it is handled:
+Pass an error as another variadic item. `Log` joins all items into one string:
 
 ```swift
 do {
     try await repository.save(profile)
 } catch {
-    Logger.error(
+    Log.e(
         "Could not save the user profile",
-        error: error,
-        metadata: [
-            "operation": "save-profile",
-            "user_id": profile.id
-        ]
+        error,
+        "operation=save-profile",
+        "user_id=", profile.id
     )
 }
 ```
 
-Avoid logging the same error at every layer unless additional context provides operational value.
+The framework does not provide a separate metadata argument.
 
-## Testing
+## Thread Safety
 
-Configure Logger explicitly when testing log behavior:
-
-```swift
-final class ProfileServiceTests: XCTestCase {
-    func testProfileFetchFailure() {
-        Logger.configure(
-            .init(minimumLevel: .error)
-        )
-
-        XCTAssertThrowsError(
-            try service.fetchProfile(id: "invalid")
-        )
-    }
-}
-```
-
-For tests that validate emitted logs, use a test output sink or inject an appropriate Logger abstraction.
-
-## Performance Guidance
-
-- Use `debug` for high-frequency diagnostics.
-- Configure production logs to warn or above.
-- Avoid expensive string interpolation in hot paths.
-- Do not construct complex metadata unless the message will be emitted.
-- Use OSLog for system-level diagnostic visibility.
-- Keep log messages stable and concise.
-
-## Security and Privacy
-
-- Never log passwords, API keys, authentication tokens, session IDs, or encryption keys.
-- Do not log complete request headers or response bodies.
-- Redact personally identifiable information.
-- Avoid sensitive application state.
-- Review logging output before shipping.
-- Use privacy-sensitive OSLog APIs where supported.
-
-## API Stability
-
-Public APIs should follow semantic versioning:
-
-- **Patch**: bug fixes and non-breaking changes
-- **Minor**: backward-compatible features
-- **Major**: breaking API changes
-
-Deprecated APIs should remain available for at least one release cycle when practical.
+`Log` protects its injected logger with `NSLock`. `AppLogger` also protects its configuration and `os.Logger` instance. Callers do not need to add synchronization around `Log.v`, `Log.d`, `Log.i`, `Log.s`, `Log.w`, or `Log.e`.
 
 ## Contributing
 
-Contributions are welcome.
-
 1. Fork the repository
 2. Create a feature branch
-3. Add or update tests
-4. Run the complete test suite
-5. Submit a pull request with a clear description
+3. Make focused changes
+4. Run the Swift package test suite
+5. Submit a pull request
 
 ```bash
 git clone https://github.com/SandeepNIOS97/Logger.git
-cd Logger
+cd Logger/Logger-framework
 swift test
 ```
-
-### Contribution Guidelines
-
-- Follow Swift API Design Guidelines
-- Preserve source compatibility
-- Add documentation for public APIs
-- Include tests for behavior changes
-- Keep changes focused
-- Avoid unrelated formatting changes
-- Use descriptive commit messages
-- Document breaking changes clearly
 
 ## License
 
