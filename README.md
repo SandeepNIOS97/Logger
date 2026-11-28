@@ -332,10 +332,6 @@ cd Logger/Logger-framework
 swift test
 ```
 
-## License
-
-License information will be added here.
-
 ## Author
 
 **SandeepNIOS97**
